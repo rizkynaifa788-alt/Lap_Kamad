@@ -31,12 +31,13 @@ interface AppContextType {
   masterKegiatan: MasterKegiatan[];
   addMasterKegiatan: (item: MasterKegiatan) => void;
   updateMasterKegiatan: (item: MasterKegiatan) => void;
-  deleteMasterKegiatan: (id: string) => void;
+  deleteMasterKegiatan: (id: string) => { success: boolean; message: string };
   toggleMasterStatus: (id: string) => void;
   laporanHarian: LaporanHarian[];
   addLaporanHarian: (item: Omit<LaporanHarian, 'id' | 'waktuInput' | 'waktuUpdate'>) => { success: boolean; message: string };
-  updateLaporanHarian: (item: LaporanHarian) => void;
-  deleteLaporanHarian: (id: string) => void;
+  updateLaporanHarian: (item: LaporanHarian) => { success: boolean; message: string };
+  deleteLaporanHarian: (id: string) => { success: boolean; message: string };
+  deleteMultipleLaporanHarian: (ids: string[]) => { success: boolean; count: number; message: string };
   arsipList: ArsipLaporan[];
   kunciLaporanBulanan: (bulan: number, tahun: number, catatan?: string) => void;
   bukaLaporanBulanan: (bulan: number, tahun: number, alasan: string) => void;
@@ -244,8 +245,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteMasterKegiatan = (id: string) => {
     const target = masterKegiatan.find((k) => k.id === id);
+    if (!target) {
+      return { success: false, message: 'Master kegiatan tidak ditemukan.' };
+    }
     setMasterKegiatan((prev) => prev.filter((k) => k.id !== id));
-    tambahLog('HAPUS', 'Master Kegiatan', 'Menghapus master kegiatan: ' + (target?.nama || id));
+    tambahLog('HAPUS', 'Master Kegiatan', 'Menghapus master kegiatan: ' + (target.nama || id));
+    return { success: true, message: `Master kegiatan "${target.nama}" berhasil dihapus.` };
   };
 
   const toggleMasterStatus = (id: string) => {
@@ -286,8 +291,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateLaporanHarian = (item: LaporanHarian) => {
     const [thn, bln] = item.tanggal.split('-');
     if (isBulanTerkunci(Number(bln), Number(thn))) {
-      alert(`Laporan bulan ${bln}/${thn} terkunci. Perubahan tidak diizinkan.`);
-      return;
+      return {
+        success: false,
+        message: `Laporan bulan ${bln}/${thn} terkunci. Perubahan tidak diizinkan.`,
+      };
     }
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -297,19 +304,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map((l) => (l.id === item.id ? { ...item, waktuUpdate: nowStr } : l))
     );
     tambahLog('EDIT', 'Laporan Harian', `Memperbarui kegiatan ID ${item.id} (${item.tanggal})`);
+    return { success: true, message: 'Catatan kegiatan berhasil diperbarui.' };
   };
 
   const deleteLaporanHarian = (id: string) => {
     const target = laporanHarian.find((l) => l.id === id);
-    if (target) {
-      const [thn, bln] = target.tanggal.split('-');
-      if (isBulanTerkunci(Number(bln), Number(thn))) {
-        alert(`Laporan bulan ${bln}/${thn} terkunci. Hapus tidak diizinkan.`);
-        return;
-      }
+    if (!target) {
+      return { success: false, message: 'Data kegiatan tidak ditemukan.' };
+    }
+    const [thn, bln] = target.tanggal.split('-');
+    if (isBulanTerkunci(Number(bln), Number(thn))) {
+      return {
+        success: false,
+        message: `Laporan bulan ${bln}/${thn} terkunci. Penghapusan tidak diizinkan.`,
+      };
     }
     setLaporanHarian((prev) => prev.filter((l) => l.id !== id));
-    tambahLog('HAPUS', 'Laporan Harian', `Menghapus laporan harian ID ${id}`);
+    tambahLog('HAPUS', 'Laporan Harian', `Menghapus laporan harian ID ${id}: ${target.uraianKegiatan.slice(0, 40)}...`);
+    return { success: true, message: 'Data kegiatan harian berhasil dihapus.' };
+  };
+
+  const deleteMultipleLaporanHarian = (ids: string[]) => {
+    if (!ids || ids.length === 0) {
+      return { success: false, count: 0, message: 'Tidak ada item yang dipilih untuk dihapus.' };
+    }
+    const targets = laporanHarian.filter((l) => ids.includes(l.id));
+    const lockedItems = targets.filter((l) => {
+      const [thn, bln] = l.tanggal.split('-');
+      return isBulanTerkunci(Number(bln), Number(thn));
+    });
+
+    if (lockedItems.length > 0) {
+      return {
+        success: false,
+        count: 0,
+        message: `${lockedItems.length} kegiatan berada pada periode bulan yang terkunci dan tidak dapat dihapus.`,
+      };
+    }
+
+    const idsSet = new Set(ids);
+    setLaporanHarian((prev) => prev.filter((l) => !idsSet.has(l.id)));
+    tambahLog('HAPUS', 'Laporan Harian', `Menghapus massal ${targets.length} data kegiatan harian`);
+    return {
+      success: true,
+      count: targets.length,
+      message: `${targets.length} data kegiatan harian berhasil dihapus.`,
+    };
   };
 
   // 6. Kunci & Buka Arsip
@@ -516,6 +556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addLaporanHarian,
         updateLaporanHarian,
         deleteLaporanHarian,
+        deleteMultipleLaporanHarian,
         arsipList,
         kunciLaporanBulanan,
         bukaLaporanBulanan,

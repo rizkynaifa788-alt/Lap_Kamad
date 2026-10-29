@@ -15,6 +15,9 @@ import {
   AlertTriangle,
   Play,
   RotateCcw,
+  CheckCircle2,
+  AlertCircle,
+  X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { gasCodeGs, standaloneIndexHtml, deploymentGuideMd } from '../data/gasCode';
@@ -37,6 +40,15 @@ export const BackupGasView: React.FC = () => {
     status: 'idle',
     message: '',
   });
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => {
+      setToast(null);
+    }, 4000);
+  };
 
   // Salin Kode Code.gs
   const handleCopyCode = () => {
@@ -97,7 +109,11 @@ export const BackupGasView: React.FC = () => {
     reader.onload = (event) => {
       const content = event.target?.result as string;
       const res = importBackupJson(content);
-      alert(res.message);
+      if (res.success) {
+        showToast('success', res.message);
+      } else {
+        showToast('error', res.message);
+      }
     };
     reader.readAsText(file);
   };
@@ -110,7 +126,7 @@ export const BackupGasView: React.FC = () => {
       webAppUrl: urlInput.trim(),
       spreadsheetId: spreadsheetIdInput.trim(),
     });
-    alert('Konfigurasi Google Apps Script berhasil disimpan!');
+    showToast('success', 'Konfigurasi Google Apps Script berhasil disimpan!');
   };
 
   // Uji Ping Koneksi Google Apps Script
@@ -527,13 +543,8 @@ export const BackupGasView: React.FC = () => {
                     </p>
                   </div>
                   <button
-                    onClick={() => {
-                      if (confirm('PERINGATAN: Apakah Anda yakin ingin mereset seluruh data kembali ke bawaan resmi Kemenag?')) {
-                        resetAllData();
-                        alert('Seluruh data berhasil direset ke standar Kemenag RI.');
-                      }
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold"
+                    onClick={() => setIsResetModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Reset Data</span>
@@ -542,6 +553,89 @@ export const BackupGasView: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Reset Data */}
+      {isResetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 animate-in zoom-in-95 duration-150 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                  Konfirmasi Reset Seluruh Data
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Apakah Anda yakin ingin mengembalikan seluruh data sistem ke standar awal Kemenag RI?
+                </p>
+              </div>
+              <button
+                onClick={() => setIsResetModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-rose-50 p-3.5 rounded-xl border border-rose-200 text-xs text-rose-800 space-y-1.5">
+              <p className="font-semibold">
+                Perhatian: Tindakan ini akan menghapus data yang telah Anda tambahkan dan mengembalikan data simulasi standar resmi.
+              </p>
+              <p className="text-[11px] text-rose-700">
+                Disarankan mengunduh berkas cadangan JSON terlebih dahulu sebelum melakukan reset.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(false)}
+                className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-lg text-xs font-semibold transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  resetAllData();
+                  setIsResetModalOpen(false);
+                  showToast('success', 'Seluruh data berhasil direset ke standar Kemenag RI.');
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition shadow-xs active:scale-95"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Ya, Reset Data Sekarang</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notifikasi */}
+      {toast && (
+        <div
+          className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold animate-in slide-in-from-top duration-200 ${
+            toast.type === 'success'
+              ? 'bg-emerald-800 text-white border-emerald-700'
+              : 'bg-rose-800 text-white border-rose-700'
+          }`}
+        >
+          {toast.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-300" />
+          )}
+          <span>{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="ml-2 hover:opacity-75 p-0.5"
+            aria-label="Tutup notifikasi"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>

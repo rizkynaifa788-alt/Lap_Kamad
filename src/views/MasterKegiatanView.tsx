@@ -11,6 +11,9 @@ import {
   Calculator,
   Save,
   X,
+  AlertTriangle,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { MasterKegiatan, MetodeHitung, KategoriKegiatan, SatuanVolume, DAFTAR_12_BIDANG } from '../types';
@@ -21,6 +24,9 @@ export const MasterKegiatanView: React.FC = () => {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MasterKegiatan | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<MasterKegiatan | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Filter Kategori
   const [filterKategori, setFilterKategori] = useState<string>('semua');
@@ -40,8 +46,16 @@ export const MasterKegiatanView: React.FC = () => {
     defaultBukti: 'Dokumen',
   });
 
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => {
+      setToast(null);
+    }, 4000);
+  };
+
   const handleOpenAdd = () => {
     setEditingItem(null);
+    setFormError(null);
     setFormData({
       id: `KEG-${String(masterKegiatan.length + 1).padStart(3, '0')}`,
       nama: '',
@@ -60,6 +74,7 @@ export const MasterKegiatanView: React.FC = () => {
 
   const handleOpenEdit = (item: MasterKegiatan) => {
     setEditingItem(item);
+    setFormError(null);
     setFormData(item);
     setModalOpen(true);
   };
@@ -67,16 +82,29 @@ export const MasterKegiatanView: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nama.trim()) {
-      alert('Nama kegiatan wajib diisi.');
+      setFormError('Nama uraian tugas / kegiatan wajib diisi.');
       return;
     }
 
     if (editingItem) {
       updateMasterKegiatan(formData);
+      showToast('success', `Master kegiatan "${formData.nama}" berhasil diperbarui.`);
     } else {
       addMasterKegiatan(formData);
+      showToast('success', `Master kegiatan "${formData.nama}" berhasil ditambahkan.`);
     }
     setModalOpen(false);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!itemToDelete) return;
+    const res = deleteMasterKegiatan(itemToDelete.id);
+    if (res.success) {
+      showToast('success', res.message);
+    } else {
+      showToast('error', res.message);
+    }
+    setItemToDelete(null);
   };
 
   const filteredItems = masterKegiatan
@@ -84,7 +112,32 @@ export const MasterKegiatanView: React.FC = () => {
     .sort((a, b) => a.urutanCetak - b.urutanCetak);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Toast Notifikasi */}
+      {toast && (
+        <div
+          className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold animate-in slide-in-from-top duration-200 ${
+            toast.type === 'success'
+              ? 'bg-emerald-800 text-white border-emerald-700'
+              : 'bg-rose-800 text-white border-rose-700'
+          }`}
+        >
+          {toast.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-300" />
+          )}
+          <span>{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="ml-2 hover:opacity-75 p-0.5"
+            aria-label="Tutup notifikasi"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Header Halaman */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
@@ -96,106 +149,44 @@ export const MasterKegiatanView: React.FC = () => {
               Master Jenis Kegiatan Kepala Madrasah
             </h2>
             <p className="text-xs text-slate-500">
-              Konfigurasi tugas standar, satuan volume, dan aturan integrasi otomatis ke Lampiran II
+              Konfigurasi 12 bidang tugas standar, satuan volume, dan aturan integrasi otomatis ke Lampiran II
             </p>
           </div>
         </div>
 
         <button
           onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow transition"
+          className="flex items-center gap-1.5 px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs"
         >
           <Plus className="w-4 h-4" />
           <span>Tambah Jenis Kegiatan</span>
         </button>
       </div>
 
-      {/* Penjelasan 4 Aturan Penghitungan Volume */}
-      <div className="bg-emerald-950 text-white p-5 rounded-xl shadow-xs border border-emerald-900 space-y-3">
-        <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
-          <Calculator className="w-4 h-4" />
-          <span>Aturan Resmi Penghitungan Volume (Integrasi Lampiran I ke Lampiran II)</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs text-emerald-100">
-          <div className="bg-emerald-900/60 p-3 rounded-lg border border-emerald-800/60">
-            <span className="font-bold text-white block mb-1">1. Jumlah Pelaksanaan</span>
-            <p className="text-[11px] leading-relaxed text-emerald-200">
-              Setiap catatan harian valid dihitung 1 kali volume. Contoh: 4 kali supervisi kelas = 4 Kegiatan.
-            </p>
-          </div>
-          <div className="bg-emerald-900/60 p-3 rounded-lg border border-emerald-800/60">
-            <span className="font-bold text-white block mb-1">2. Tanggal Unik (Hari)</span>
-            <p className="text-[11px] leading-relaxed text-emerald-200">
-              Dihitung berdasarkan jumlah tanggal unik. Kegiatan serupa dalam hari yang sama dihitung 1 Hari.
-            </p>
-          </div>
-          <div className="bg-emerald-900/60 p-3 rounded-lg border border-emerald-800/60">
-            <span className="font-bold text-white block mb-1">3. Output Dokumen</span>
-            <p className="text-[11px] leading-relaxed text-emerald-200">
-              Dihitung berdasarkan jumlah produk fisik/digital dokumen sah yang dihasilkan dalam periode laporan.
-            </p>
-          </div>
-          <div className="bg-emerald-900/60 p-3 rounded-lg border border-emerald-800/60">
-            <span className="font-bold text-white block mb-1">4. Manual Terverifikasi</span>
-            <p className="text-[11px] leading-relaxed text-emerald-200">
-              Untuk tugas khusus yang membutuhkan verifikasi instrumen atau penetapan angka mandiri.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter 12 Bidang Tugas Pokok Kepala Madrasah */}
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs space-y-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-emerald-700" />
-            <span>Saring Berdasarkan 12 Bidang Tugas Pokok Kepala Madrasah:</span>
-          </span>
-          <span className="text-[11px] text-slate-500 font-medium">
-            Menampilkan {filteredItems.length} dari {masterKegiatan.length} Jenis Kegiatan
-          </span>
+      {/* Filter Kategori 12 Bidang */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs w-full sm:w-auto">
+          <Layers className="w-4 h-4 text-emerald-800 shrink-0" />
+          <span className="font-semibold text-slate-700 shrink-0">Filter Bidang Tugas:</span>
+          <select
+            value={filterKategori}
+            onChange={(e) => setFilterKategori(e.target.value)}
+            className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700 font-medium w-full sm:w-80"
+          >
+            <option value="semua">Semua Bidang ({masterKegiatan.length} Kegiatan)</option>
+            {DAFTAR_12_BIDANG.map((b) => {
+              const count = masterKegiatan.filter((k) => k.kategori === b).length;
+              return (
+                <option key={b} value={b}>
+                  {b} ({count})
+                </option>
+              );
+            })}
+          </select>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-          <button
-            onClick={() => setFilterKategori('semua')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors shrink-0 ${
-              filterKategori === 'semua'
-                ? 'bg-emerald-800 text-white shadow-xs font-bold'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            Semua Bidang ({masterKegiatan.length})
-          </button>
-          {DAFTAR_12_BIDANG.map((bidang, idx) => {
-            const shortName = bidang.replace('Bidang ', '');
-            const count = masterKegiatan.filter((m) => m.kategori === bidang).length;
-            return (
-              <button
-                key={bidang}
-                onClick={() => setFilterKategori(bidang)}
-                className={`px-2.5 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors shrink-0 ${
-                  filterKategori === bidang
-                    ? 'bg-emerald-800 text-white shadow-xs font-bold'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-                title={bidang}
-              >
-                <span>{idx + 1}. {shortName}</span>
-                <span className="ml-1.5 text-[10px] opacity-75">({count})</span>
-              </button>
-            );
-          })}
-          <button
-            onClick={() => setFilterKategori('Tugas Kedinasan Lainnya')}
-            className={`px-2.5 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors shrink-0 ${
-              filterKategori === 'Tugas Kedinasan Lainnya'
-                ? 'bg-emerald-800 text-white shadow-xs font-bold'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            Kedinasan Lainnya ({masterKegiatan.filter((m) => m.kategori === 'Tugas Kedinasan Lainnya').length})
-          </button>
+        <div className="text-[11px] text-slate-500 font-medium">
+          Menampilkan <strong>{filteredItems.length}</strong> kegiatan master aktif & siap dipakai
         </div>
       </div>
 
@@ -207,13 +198,13 @@ export const MasterKegiatanView: React.FC = () => {
               <tr>
                 <th className="p-3 w-12 text-center">Urut</th>
                 <th className="p-3 w-20">Kode</th>
-                <th className="p-3">Nama Kegiatan Standar</th>
-                <th className="p-3 w-44">Kategori Tugas</th>
+                <th className="p-3">Uraian Tugas / Kegiatan Standar</th>
+                <th className="p-3 w-52">Bidang / Kategori</th>
                 <th className="p-3 w-24">Satuan</th>
-                <th className="p-3 w-36">Metode Hitung</th>
+                <th className="p-3 w-28">Metode Hitung</th>
                 <th className="p-3 w-20 text-center">Target</th>
                 <th className="p-3 w-24 text-center">Status</th>
-                <th className="p-3 w-24 text-center">Aksi</th>
+                <th className="p-3 w-20 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -262,21 +253,17 @@ export const MasterKegiatanView: React.FC = () => {
                     </button>
                   </td>
                   <td className="p-3 text-center">
-                    <div className="flex items-center justify-center gap-1.5">
+                    <div className="flex items-center justify-center gap-1">
                       <button
                         onClick={() => handleOpenEdit(item)}
-                        className="p-1 text-slate-500 hover:text-emerald-700 rounded hover:bg-slate-100 transition"
+                        className="p-1.5 text-slate-500 hover:text-emerald-700 rounded hover:bg-slate-100 transition"
                         title="Edit Master Kegiatan"
                       >
                         <Edit className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm(`Yakin ingin menghapus master kegiatan "${item.nama}"?`)) {
-                            deleteMasterKegiatan(item.id);
-                          }
-                        }}
-                        className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100 transition"
+                        onClick={() => setItemToDelete(item)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition active:scale-90"
                         title="Hapus Master Kegiatan"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -289,6 +276,78 @@ export const MasterKegiatanView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Modal Konfirmasi Hapus Master Kegiatan (In-App Modal Tanpa window.confirm) */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 animate-in zoom-in-95 duration-150 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                  Konfirmasi Hapus Master Kegiatan
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Apakah Anda yakin ingin menghapus referensi jenis kegiatan ini?
+                </p>
+              </div>
+              <button
+                onClick={() => setItemToDelete(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 space-y-2 text-xs">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="text-slate-500 font-medium">Kode Kegiatan:</span>
+                <span className="font-bold text-emerald-800 font-mono">{itemToDelete.id}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 font-medium block">Nama Tugas:</span>
+                <span className="font-bold text-slate-900 block mt-0.5">{itemToDelete.nama}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+                <div>
+                  <span className="text-slate-400 block">Bidang:</span>
+                  <span className="font-medium text-slate-700">{itemToDelete.kategori}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Satuan / Metode:</span>
+                  <span className="font-medium text-slate-700">
+                    {itemToDelete.satuan} ({itemToDelete.metodeHitung})
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 bg-slate-100 p-2.5 rounded-lg border border-slate-200 leading-relaxed">
+              Catatan historis laporan harian yang sudah menggunakan kode ini akan tetap tersimpan aman di arsip, namun kegiatan ini tidak lagi muncul sebagai opsi formulir baru.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setItemToDelete(null)}
+                className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-lg text-xs font-semibold transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition shadow-xs active:scale-95"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Ya, Hapus Master Kegiatan</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Tambah / Edit */}
       {modalOpen && (
@@ -306,79 +365,77 @@ export const MasterKegiatanView: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-              <div className="grid grid-cols-3 gap-3">
+            {formError && (
+              <div className="mt-3 p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    ID Kegiatan *
+                    ID / Kode Kegiatan
                   </label>
                   <input
                     type="text"
-                    required
                     value={formData.id}
+                    disabled={!!editingItem}
                     onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                    className="w-full px-2.5 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                    className="w-full px-2.5 py-1.5 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                    required
                   />
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Urutan Cetak
+                    Urutan Cetak (Lampiran II)
                   </label>
                   <input
                     type="number"
                     value={formData.urutanCetak}
                     onChange={(e) => setFormData({ ...formData, urutanCetak: Number(e.target.value) })}
                     className="w-full px-2.5 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                    required
                   />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as 'aktif' | 'nonaktif' })}
-                    className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700"
-                  >
-                    <option value="aktif">Aktif</option>
-                    <option value="nonaktif">Nonaktif</option>
-                  </select>
                 </div>
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Nama Kegiatan Standar (Lampiran II) *
+                  Uraian Tugas / Kegiatan *
                 </label>
                 <input
                   type="text"
-                  required
                   value={formData.nama}
-                  onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
-                  placeholder="Contoh: Melaksanakan supervisi manajerial tata usaha"
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700 font-medium"
+                  onChange={(e) => {
+                    setFormData({ ...formData, nama: e.target.value });
+                    if (formError) setFormError(null);
+                  }}
+                  placeholder="Contoh: Melaksanakan supervisi akademik pembelajaran guru"
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Kategori Tugas
-                  </label>
-                  <select
-                    value={formData.kategori}
-                    onChange={(e) => setFormData({ ...formData, kategori: e.target.value as KategoriKegiatan })}
-                    className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700 font-medium"
-                  >
-                    {DAFTAR_12_BIDANG.map((bidang, idx) => (
-                      <option key={bidang} value={bidang}>
-                        {idx + 1}. {bidang}
-                      </option>
-                    ))}
-                    <option value="Tugas Kedinasan Lainnya">13. Tugas Kedinasan Lainnya</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Bidang Tugas (12 Bidang Kemenag RI) *
+                </label>
+                <select
+                  value={formData.kategori}
+                  onChange={(e) => setFormData({ ...formData, kategori: e.target.value as KategoriKegiatan })}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700 font-medium"
+                >
+                  {DAFTAR_12_BIDANG.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
                     Satuan Volume *
@@ -389,32 +446,27 @@ export const MasterKegiatanView: React.FC = () => {
                     className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700"
                   >
                     <option value="Kegiatan">Kegiatan</option>
-                    <option value="Dokumen">Dokumen</option>
-                    <option value="Hari">Hari</option>
                     <option value="Laporan">Laporan</option>
-                    <option value="Rapat">Rapat</option>
+                    <option value="Dokumen">Dokumen</option>
                     <option value="Berkas">Berkas</option>
+                    <option value="Surat">Surat</option>
+                    <option value="Paket">Paket</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                    Metode Penghitungan Volume *
+                    Metode Perhitungan
                   </label>
                   <select
                     value={formData.metodeHitung}
                     onChange={(e) => setFormData({ ...formData, metodeHitung: e.target.value as MetodeHitung })}
-                    className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700 font-semibold"
+                    className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700"
                   >
-                    <option value="pelaksanaan">Jumlah Pelaksanaan (1 Catatan = 1 Volume)</option>
-                    <option value="tanggal_unik">Jumlah Tanggal Unik (Hari Kalender)</option>
-                    <option value="output_dokumen">Jumlah Output / Dokumen Fisik</option>
-                    <option value="manual">Manual Terverifikasi</option>
+                    <option value="pelaksanaan">Jumlah Pelaksanaan</option>
+                    <option value="hari_kerja">Hari Kerja Berbeda</option>
+                    <option value="tetap_satu">Tetap 1 Kali</option>
                   </select>
                 </div>
-
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
                     Target Bulanan

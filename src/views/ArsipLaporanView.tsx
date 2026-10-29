@@ -59,13 +59,16 @@ export const ArsipLaporanView: React.FC = () => {
     setModalLockOpen(false);
   };
 
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+
   const handleConfirmUnlock = (e: React.FormEvent) => {
     e.preventDefault();
     if (!alasanBuka.trim()) {
-      alert('Alasan pembukaan kunci wajib dicantumkan untuk keperluan audit trail.');
+      setUnlockError('Alasan pembukaan kunci wajib dicantumkan untuk keperluan audit trail.');
       return;
     }
     bukaLaporanBulanan(targetPeriod.bulan, targetPeriod.tahun, alasanBuka);
+    setUnlockError(null);
     setModalUnlockOpen(false);
   };
 
@@ -288,6 +291,12 @@ export const ArsipLaporanView: React.FC = () => {
             <p className="text-xs text-rose-800 bg-rose-50 p-2.5 rounded-lg border border-rose-200 mt-2">
               Sesuai SOP Administrasi ASN Kemenag RI, setiap pembukaan kunci dokumen yang telah difinalisasi wajib menyertakan alasan resmi dan akan dicatat pada Log Aktivitas Sistem.
             </p>
+
+            {unlockError && (
+              <div className="mt-2 p-2 bg-rose-50 border border-rose-300 text-rose-700 rounded-lg text-xs font-semibold">
+                {unlockError}
+              </div>
+            )}
 
             <form onSubmit={handleConfirmUnlock} className="mt-4 space-y-4 text-xs">
               <div>
